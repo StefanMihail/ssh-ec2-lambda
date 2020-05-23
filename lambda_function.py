@@ -1,28 +1,14 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Thu Apr 19 21:12:08 2018
-
-@author: G.Poudel
-"""
-
-import time
+ 
 import boto3
 import paramiko
-
+import time
 
 def lambda_handler(event, context):
 
-    ec2 = boto3.resource('ec2', region_name='your-ec2-region-name')
-
-    instance_id = 'your-ec2-instance-id'
-
+    ec2 = boto3.resource('ec2', region_name='eu-central-1')
+    instance_id = 'i-06dbdde8de0e4a203'
     instance = ec2.Instance(instance_id)
-
-    # Start the instance
-    instance.start()
-
-    # Giving some time to start the instance completely
-    time.sleep(60)
+    time.sleep(1)
 
     # Print few details of the instance
     print("Instance id - ", instance.id)
@@ -34,30 +20,27 @@ def lambda_handler(event, context):
     # Connect to S3, we will use it get the pem key file of your ec2 instance
     s3_client = boto3.client('s3')
 
-    # Download private key file from secure S3 bucket
-    # and save it inside /tmp/ folder of lambda event
-    s3_client.download_file('YourBucketName', 'YourPEMFileObject.pem',
-                            '/tmp/keyname.pem')
+    # Download private key file from secure S3 bucket and save it inside /tmp/ folder of lambda event
+    s3_client.download_file('ssh-key', 'v2.pem', '/tmp/v2.pem')
 
     # Allowing few seconds for the download to complete
-    time.sleep(20)
-
+    time.sleep(1)
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    privkey = paramiko.RSAKey.from_private_key_file('/tmp/keyname.pem')
-    # username is most likely 'ec2-user' or 'root' or 'ubuntu'
-    # depending upon yor ec2 AMI
-    ssh.connect(
-        instance.public_dns_name, username='Your-ec2-UserName', pkey=privkey
-    )
-    stdin, stdout, stderr = ssh.exec_command(
-        'echo "ssh to ec2 instance successful"')
-    stdin.flush()
-    data = stdout.read().splitlines()
-    for line in data:
-        print(line)
+    privkey = paramiko.RSAKey.from_private_key_file('/tmp/v2.pem')
+    # username depending upon yor ec2 AMI
+    ssh.connect(instance.public_ip_address, username='loginuser', pkey=privkey, port='14422' )
+    stdin, stdout, stderr = ssh.exec_command("sudo confd-client.plx get_ipsec_status | grep -E \"\'established\'|REF_|expected\" | xargs \n sudo confd-client.plx get_ipsec_status | grep -E \"all_established|REF_|\'rightsubnet\'\" | xargs")
+    #(" df -h \n du -h")
+    opt =stdout.readlines()
+    opt = "".join(opt)
+    print(opt)
 
-    ssh.close()
+#-----------Tests---------------
+#    stdin.flush()
+#    data = stdout.read().splitlines()
+#    for line in data:
+#         print(line)
+#    ssh.close()
 
-    # Stop the instance
-    instance.stop()
+#        exit_code = stdout.read().decode('ascii').strip("\n")
